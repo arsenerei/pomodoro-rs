@@ -1,6 +1,6 @@
 use std::io;
 use std::io::{Cursor, Write};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
@@ -25,6 +25,7 @@ enum Mode {
     PomodoroEndedAcked,
     AwaitingBreakEndedAck,
     BreakEndedAcked,
+    SystemError,
 }
 
 // TODO: add more descriptions
@@ -97,6 +98,8 @@ fn main() {
                 break,
             Ok(Event::Key(Key::Char('p'))) =>
                 paused = !paused,
+            Err(RecvTimeoutError::Disconnected) =>
+                mode = Mode::SystemError,
             _ => (),
         }
 
@@ -182,6 +185,11 @@ fn main() {
             Mode::AwaitingBreakEndedAck => write!(
                 stdout,
                 "{}Break ended. Press key to begin break.\r",
+                termion::clear::CurrentLine,
+            ).unwrap(),
+            Mode::SystemError => write!(
+                stdout,
+                "{}System error. Shutting down.\r\n",
                 termion::clear::CurrentLine,
             ).unwrap(),
             _ => unreachable!(),
