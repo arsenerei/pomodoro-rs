@@ -43,7 +43,7 @@ struct Opt {
 }
 
 fn human_time(s: i128) -> String {
-    format!("{:02}:{:02}", s / 60, s % 60)
+    format!("{:02}:{:02}", s / 1_000 / 60, s % 60)
 }
 
 // include_bytes! adds the song to the binary
@@ -146,7 +146,7 @@ fn main() {
                         "{}Pomodoro {}: {} (paused)\r",
                         termion::clear::CurrentLine,
                         pomodoro_count,
-                        human_time(current_duration / 1_000),
+                        human_time(current_duration),
                     ).unwrap();
                 } else {
                     write!(
@@ -154,7 +154,7 @@ fn main() {
                         "{}Pomodoro {}: {}\r",
                         termion::clear::CurrentLine,
                         pomodoro_count,
-                        human_time(current_duration / 1_000),
+                        human_time(current_duration),
                     ).unwrap();
                 }
             }
@@ -165,7 +165,7 @@ fn main() {
                         "{}Break {}: {} (paused)\r",
                         termion::clear::CurrentLine,
                         break_count,
-                        human_time(current_duration / 1_000),
+                        human_time(current_duration),
                     ).unwrap();
                 } else {
                     write!(
@@ -173,7 +173,7 @@ fn main() {
                         "{}Break {}: {}\r",
                         termion::clear::CurrentLine,
                         break_count,
-                        human_time(current_duration / 1_000),
+                        human_time(current_duration),
                     ).unwrap();
                 }
             }
