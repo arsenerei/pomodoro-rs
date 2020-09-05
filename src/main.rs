@@ -10,16 +10,10 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
-// This model is a pared down version of an event loop I read in the tui-rs examples. We use an
-// `mpsc` channel to send multiple messages to from various sources. The trick here is to send a
-// "tick" every once in a while to keep the main event loop active. I think there's a select or
-// poll style that's more efficient, but I don't know much about this yet.
-
 // `mspc`'s tx and rx need to send and receive something of the same type. We use `Event`
 // here to wrap our mixed types in a container to appease the compiler. I haven't fully
-// groked how this works.
+// groked how enums of mixed types work.
 enum Event {
-    Tick,
     Key(Key),
 }
 
@@ -69,39 +63,19 @@ fn main() {
     let max_pomodoros = opt.max_pomodoros;
     let pomodoro_duration: i32 = opt.pomodoro_duration as i32 * 60 * 1_000;
 
-    let tick_rate = 500;
-
     // We create a channel for communication. We can have as many `tx`s as we want, but
     // only a single `rx`.
     let (tx, rx) = channel();
 
-    // our ticker thread
-    let ticker_handle = {
-        let tx = tx.clone();
-        thread::spawn(move|| {
-            loop {
-                // this means it has closed from the other side
-                if tx.send(Event::Tick).is_err() {
-                    break;
-                }
-                thread::sleep(Duration::from_millis(tick_rate));
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        for c in stdin.keys() {
+            // this means it has closed from the other side
+            if tx.send(Event::Key(c.unwrap())).is_err() {
+                break;
             }
-        })
-    };
-
-    // our keyboard input thread
-    {
-        let tx = tx.clone();
-        thread::spawn(move || {
-            let stdin = io::stdin();
-            for c in stdin.keys() {
-                // this means it has closed from the other side
-                if tx.send(Event::Key(c.unwrap())).is_err() {
-                    break;
-                }
-            }
-        });
-    }
+        }
+    });
 
     // NB: stdout must be in raw mode for individual keypresses to work
     let mut stdout = io::stdout().into_raw_mode().unwrap();
@@ -114,14 +88,14 @@ fn main() {
     let mut mode = Mode::Pomodoro;
     loop {
         let start = SystemTime::now();
-        match rx.recv().unwrap() {
-            Event::Key(_) if mode == Mode::AwaitingPomodoroEndedAck =>
+        match rx.recv_timeout(Duration::from_millis(500)) {
+            Ok(Event::Key(_)) if mode == Mode::AwaitingPomodoroEndedAck =>
                 mode = Mode::PomodoroEndedAcked,
-            Event::Key(_) if mode == Mode::AwaitingBreakEndedAck =>
+            Ok(Event::Key(_)) if mode == Mode::AwaitingBreakEndedAck =>
                 mode = Mode::BreakEndedAcked,
-            Event::Key(Key::Char('q')) | Event::Key(Key::Ctrl('c')) =>
+            Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) =>
                 break,
-            Event::Key(Key::Char('p')) =>
+            Ok(Event::Key(Key::Char('p'))) =>
                 paused = !paused,
             _ => (),
         }
@@ -214,11 +188,4 @@ fn main() {
         }
         stdout.flush().unwrap();
     }
-
-    // close the channel
-    drop(rx);
-
-    // While not strictly necessary, this shows how to join a thread back to the
-    // main thread for monitoring.
-    ticker_handle.join().unwrap();
 }
