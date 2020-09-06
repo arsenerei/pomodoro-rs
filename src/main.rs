@@ -43,7 +43,7 @@ struct Opt {
 }
 
 fn human_time(s: i128) -> String {
-    format!("{:02}:{:02}", s / 1_000 / 60, s % 60)
+    format!("{:02}:{:02}", s / 1_000 / 60, (s / 1_000) % 60)
 }
 
 // include_bytes! adds the song to the binary
