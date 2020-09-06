@@ -2,7 +2,7 @@ use std::io;
 use std::io::{Cursor, Write};
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use rodio::Source;
 use structopt::StructOpt;
@@ -88,7 +88,7 @@ fn main() {
     let mut paused = false;
     let mut mode = Mode::Pomodoro;
     loop {
-        let start = SystemTime::now();
+        let start = Instant::now();
         match rx.recv_timeout(Duration::from_millis(500)) {
             Ok(Event::Key(_)) if mode == Mode::AwaitingPomodoroEndedAck =>
                 mode = Mode::PomodoroEndedAcked,
@@ -104,7 +104,8 @@ fn main() {
         }
 
         if !paused && (mode == Mode::Pomodoro || mode == Mode::Break) {
-            let elapsed = SystemTime::now().duration_since(start).unwrap().as_millis();
+            // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
+            let elapsed = start.elapsed().as_millis();
             current_duration -= elapsed as i128;
         }
 
