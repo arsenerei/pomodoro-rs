@@ -81,6 +81,8 @@ fn main() {
     // NB: stdout must be in raw mode for individual keypresses to work
     let mut stdout = io::stdout().into_raw_mode().unwrap();
 
+    write!(stdout, "{}", termion::cursor::Hide).unwrap();
+
     // TODO: write tests
     let mut current_duration: i128 = pomodoro_duration as i128;
     let mut pomodoro_count = 1;
@@ -197,4 +199,7 @@ fn main() {
         }
         stdout.flush().unwrap();
     }
+
+    write!(stdout, "{}", termion::cursor::Show).unwrap();
+    stdout.flush().unwrap();
 }
