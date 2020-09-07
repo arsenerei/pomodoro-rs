@@ -99,16 +99,15 @@ fn main() {
     loop {
         let start = Instant::now();
         match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Key(_)) if mode == Mode::AwaitingPomodoroEndedAck =>
-                mode = Mode::PomodoroEndedAcked,
-            Ok(Event::Key(_)) if mode == Mode::AwaitingBreakEndedAck =>
-                mode = Mode::BreakEndedAcked,
-            Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) =>
-                break,
-            Ok(Event::Key(Key::Char('p'))) =>
-                paused = !paused,
-            Err(RecvTimeoutError::Disconnected) =>
-                mode = Mode::SystemError,
+            Ok(Event::Key(_)) if mode == Mode::AwaitingPomodoroEndedAck => {
+                mode = Mode::PomodoroEndedAcked
+            }
+            Ok(Event::Key(_)) if mode == Mode::AwaitingBreakEndedAck => {
+                mode = Mode::BreakEndedAcked
+            }
+            Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) => break,
+            Ok(Event::Key(Key::Char('p'))) => paused = !paused,
+            Err(RecvTimeoutError::Disconnected) => mode = Mode::SystemError,
             _ => (),
         }
 
@@ -133,8 +132,7 @@ fn main() {
                 round_duration = Duration::from_secs(break_duration);
                 mode = Mode::Break;
             }
-            Mode::Break if elapsed >= round_duration =>
-                mode = Mode::AwaitingBreakEndedAck,
+            Mode::Break if elapsed >= round_duration => mode = Mode::AwaitingBreakEndedAck,
             Mode::BreakEndedAcked => {
                 break_count += 1;
                 round_duration = Duration::from_secs(pomodoro_duration);
@@ -156,7 +154,8 @@ fn main() {
                         termion::clear::CurrentLine,
                         pomodoro_count,
                         human_time(round_duration, elapsed),
-                    ).unwrap();
+                    )
+                    .unwrap();
                 } else {
                     write!(
                         stdout,
@@ -164,7 +163,8 @@ fn main() {
                         termion::clear::CurrentLine,
                         pomodoro_count,
                         human_time(round_duration, elapsed),
-                    ).unwrap();
+                    )
+                    .unwrap();
                 }
             }
             Mode::Break => {
@@ -175,7 +175,8 @@ fn main() {
                         termion::clear::CurrentLine,
                         break_count,
                         human_time(round_duration, elapsed),
-                    ).unwrap();
+                    )
+                    .unwrap();
                 } else {
                     write!(
                         stdout,
@@ -183,24 +184,28 @@ fn main() {
                         termion::clear::CurrentLine,
                         break_count,
                         human_time(round_duration, elapsed),
-                    ).unwrap();
+                    )
+                    .unwrap();
                 }
             }
             Mode::AwaitingPomodoroEndedAck => write!(
                 stdout,
                 "{}Pomodoro ended. Press key to begin break.\r",
                 termion::clear::CurrentLine,
-            ).unwrap(),
+            )
+            .unwrap(),
             Mode::AwaitingBreakEndedAck => write!(
                 stdout,
                 "{}Break ended. Press key to begin break.\r",
                 termion::clear::CurrentLine,
-            ).unwrap(),
+            )
+            .unwrap(),
             Mode::SystemError => write!(
                 stdout,
                 "{}System error. Shutting down.\r\n",
                 termion::clear::CurrentLine,
-            ).unwrap(),
+            )
+            .unwrap(),
             _ => unreachable!(),
         }
         stdout.flush().unwrap();
