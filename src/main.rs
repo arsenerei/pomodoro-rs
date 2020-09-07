@@ -33,17 +33,23 @@ enum Mode {
 #[structopt(name = "pomodoro")]
 struct Opt {
     #[structopt(short, long, default_value = "25")]
-    pomodoro_duration: i8,
+    pomodoro_duration: u8,
 
     #[structopt(short, long, default_value = "4")]
-    break_duration: i8,
+    break_duration: u8,
 
     #[structopt(short, long, default_value = "4")]
-    max_pomodoros: i8,
+    max_pomodoros: u8,
 }
 
-fn human_time(s: i128) -> String {
-    format!("{:02}:{:02}", s / 1_000 / 60, (s / 1_000) % 60)
+fn human_time(duration: Duration, elapsed: Duration) -> String {
+    let secs = if elapsed >= duration {
+        0
+    } else {
+        (duration - elapsed).as_secs()
+    };
+
+    format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
 // include_bytes! adds the song to the binary
@@ -60,9 +66,9 @@ fn play_sound() -> () {
 fn main() {
     let opt = Opt::from_args();
 
-    let break_duration: i32 = opt.break_duration as i32 * 60 * 1_000;
+    let break_duration: u64 = opt.break_duration as u64 * 60;
+    let pomodoro_duration: u64 = opt.pomodoro_duration as u64 * 60;
     let max_pomodoros = opt.max_pomodoros;
-    let pomodoro_duration: i32 = opt.pomodoro_duration as i32 * 60 * 1_000;
 
     // We create a channel for communication. We can have as many `tx`s as we want, but
     // only a single `rx`.
@@ -84,7 +90,8 @@ fn main() {
     write!(stdout, "{}", termion::cursor::Hide).unwrap();
 
     // TODO: write tests
-    let mut current_duration: i128 = pomodoro_duration as i128;
+    let mut round_duration = Duration::from_secs(pomodoro_duration);
+    let mut elapsed = Duration::from_secs(0);
     let mut pomodoro_count = 1;
     let mut break_count = 1;
     let mut paused = false;
@@ -107,14 +114,13 @@ fn main() {
 
         if !paused && (mode == Mode::Pomodoro || mode == Mode::Break) {
             // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
-            let elapsed = start.elapsed().as_millis();
-            current_duration -= elapsed as i128;
+            elapsed += start.elapsed();
         }
 
         // The nice thing about using match with Enums in Rust is you get
         // exhaustive match checking. This ensures you're covering all cases.
         match mode {
-            Mode::Pomodoro if current_duration <= 0 => {
+            Mode::Pomodoro if elapsed >= round_duration => {
                 if pomodoro_count == max_pomodoros {
                     break;
                 } else {
@@ -124,14 +130,14 @@ fn main() {
             }
             Mode::PomodoroEndedAcked => {
                 pomodoro_count += 1;
-                current_duration = break_duration as i128;
+                round_duration = Duration::from_secs(break_duration);
                 mode = Mode::Break;
             }
-            Mode::Break if current_duration <= 0 =>
+            Mode::Break if elapsed >= round_duration =>
                 mode = Mode::AwaitingBreakEndedAck,
             Mode::BreakEndedAcked => {
                 break_count += 1;
-                current_duration = pomodoro_duration as i128;
+                round_duration = Duration::from_secs(pomodoro_duration);
                 mode = Mode::Pomodoro;
             }
             _ => (),
@@ -149,7 +155,7 @@ fn main() {
                         "{}Pomodoro {}: {} (paused)\r",
                         termion::clear::CurrentLine,
                         pomodoro_count,
-                        human_time(current_duration),
+                        human_time(round_duration, elapsed),
                     ).unwrap();
                 } else {
                     write!(
@@ -157,7 +163,7 @@ fn main() {
                         "{}Pomodoro {}: {}\r",
                         termion::clear::CurrentLine,
                         pomodoro_count,
-                        human_time(current_duration),
+                        human_time(round_duration, elapsed),
                     ).unwrap();
                 }
             }
@@ -168,7 +174,7 @@ fn main() {
                         "{}Break {}: {} (paused)\r",
                         termion::clear::CurrentLine,
                         break_count,
-                        human_time(current_duration),
+                        human_time(round_duration, elapsed),
                     ).unwrap();
                 } else {
                     write!(
@@ -176,7 +182,7 @@ fn main() {
                         "{}Break {}: {}\r",
                         termion::clear::CurrentLine,
                         break_count,
-                        human_time(current_duration),
+                        human_time(round_duration, elapsed),
                     ).unwrap();
                 }
             }
