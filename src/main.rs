@@ -196,7 +196,7 @@ fn main() {
             .unwrap(),
             Mode::AwaitingBreakEndedAck => write!(
                 stdout,
-                "{}Break ended. Press key to begin break.\r",
+                "{}Break ended. Press key to begin a new pomodoro.\r",
                 termion::clear::CurrentLine,
             )
             .unwrap(),
