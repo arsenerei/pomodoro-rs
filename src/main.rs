@@ -26,6 +26,7 @@ enum Mode {
     AwaitingBreakEndedAck,
     BreakEndedAcked,
     SystemError,
+    End,
 }
 
 // TODO: add more descriptions
@@ -121,7 +122,8 @@ fn main() {
         match mode {
             Mode::Pomodoro if elapsed >= round_duration => {
                 if pomodoro_count == max_pomodoros {
-                    break;
+                    play_sound();
+                    mode = Mode::End;
                 } else {
                     play_sound();
                     mode = Mode::AwaitingPomodoroEndedAck;
@@ -132,7 +134,10 @@ fn main() {
                 round_duration = Duration::from_secs(break_duration);
                 mode = Mode::Break;
             }
-            Mode::Break if elapsed >= round_duration => mode = Mode::AwaitingBreakEndedAck,
+            Mode::Break if elapsed >= round_duration => {
+                play_sound();
+                mode = Mode::AwaitingBreakEndedAck;
+            }
             Mode::BreakEndedAcked => {
                 break_count += 1;
                 round_duration = Duration::from_secs(pomodoro_duration);
@@ -206,6 +211,10 @@ fn main() {
                 termion::clear::CurrentLine,
             )
             .unwrap(),
+            Mode::End => {
+                write!(stdout, "{}Done.\r\n", termion::clear::CurrentLine).unwrap();
+                break;
+            }
             _ => unreachable!(),
         }
         stdout.flush().unwrap();
