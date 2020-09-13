@@ -131,6 +131,7 @@ fn main() {
             }
             Mode::PomodoroEndedAcked => {
                 pomodoro_count += 1;
+                elapsed = Duration::from_secs(0);
                 round_duration = Duration::from_secs(break_duration);
                 mode = Mode::Break;
             }
@@ -140,6 +141,7 @@ fn main() {
             }
             Mode::BreakEndedAcked => {
                 break_count += 1;
+                elapsed = Duration::from_secs(0);
                 round_duration = Duration::from_secs(pomodoro_duration);
                 mode = Mode::Pomodoro;
             }
