@@ -92,6 +92,7 @@ impl Interval {
 }
 
 impl SubAssign<Duration> for Interval {
+    #[allow(clippy::suspicious_op_assign_impl)]
     fn sub_assign(&mut self, rhs: Duration) {
         // count up on `elapsed` because Duration can't be negative
         // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
@@ -126,10 +127,10 @@ struct Opt {
 }
 
 // include_bytes! adds the song to the binary
-static GONG: &'static [u8] = include_bytes!("indian-gong.mp3");
+const GONG: &[u8] = include_bytes!("indian-gong.mp3");
 
 // TODO: add option to play synchronously when ending
-fn play_sound() -> () {
+fn play_sound() {
     let device = rodio::default_output_device().unwrap();
     let cursor = Cursor::new(GONG);
     let source = rodio::Decoder::new(cursor).unwrap();
