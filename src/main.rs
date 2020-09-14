@@ -292,7 +292,7 @@ fn main() {
                 )
                 .unwrap();
             }
-            _ => unreachable!(),
+            _ => (),
         }
         stdout.flush().unwrap();
     }
