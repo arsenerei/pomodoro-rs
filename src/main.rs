@@ -22,12 +22,12 @@ enum Event {
 
 #[derive(PartialEq)]
 enum Mode {
+    EnteringPomodoro,
     Pomodoro,
+    PomodoroEnded,
+    EnteringBreak,
     Break,
-    AwaitingPomodoroEndedAck,
-    PomodoroEndedAcked,
-    AwaitingBreakEndedAck,
-    BreakEndedAcked,
+    BreakEnded,
     End,
 }
 
@@ -50,23 +50,23 @@ impl StateMachine {
 
     fn next_state(&mut self) {
         match self.mode {
+            Mode::EnteringPomodoro => self.mode = Mode::Pomodoro,
             Mode::Pomodoro => {
                 if self.pomodoro_count == self.max_pomodoros {
                     self.mode = Mode::End;
                 } else {
-                    self.mode = Mode::AwaitingPomodoroEndedAck;
+                    self.mode = Mode::PomodoroEnded;
                 }
             }
-            Mode::AwaitingPomodoroEndedAck => self.mode = Mode::PomodoroEndedAcked,
-            Mode::PomodoroEndedAcked => {
+            Mode::PomodoroEnded => {
                 self.pomodoro_count += 1;
-                self.mode = Mode::Break;
+                self.mode = Mode::EnteringBreak;
             }
-            Mode::Break => self.mode = Mode::AwaitingBreakEndedAck,
-            Mode::AwaitingBreakEndedAck => self.mode = Mode::BreakEndedAcked,
-            Mode::BreakEndedAcked => {
+            Mode::EnteringBreak => self.mode = Mode::Break,
+            Mode::Break => self.mode = Mode::BreakEnded,
+            Mode::BreakEnded => {
                 self.break_count += 1;
-                self.mode = Mode::Pomodoro;
+                self.mode = Mode::EnteringPomodoro;
             }
             Mode::End => (),
         }
@@ -163,17 +163,16 @@ fn main() {
     write!(stdout, "{}", termion::cursor::Hide).unwrap();
 
     // TODO: write tests
+    let mut state_machine = StateMachine::new(max_pomodoros);
     let mut interval = Interval::from_secs(pomodoro_duration);
     let mut paused = false;
-    let mut mode = Mode::Pomodoro;
-    let mut state_machine = StateMachine::new(max_pomodoros);
     loop {
         let start = Instant::now();
         match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Key(_)) if state_machine.mode == Mode::AwaitingPomodoroEndedAck => {
+            Ok(Event::Key(_)) if state_machine.mode == Mode::PomodoroEnded => {
                 state_machine.next_state();
             }
-            Ok(Event::Key(_)) if state_machine.mode == Mode::AwaitingBreakEndedAck => {
+            Ok(Event::Key(_)) if state_machine.mode == Mode::BreakEnded => {
                 state_machine.next_state();
             }
             Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) => break,
@@ -197,23 +196,20 @@ fn main() {
         // The nice thing about using match with Enums in Rust is you get
         // exhaustive match checking. This ensures you're covering all cases.
         match state_machine.mode {
+            Mode::EnteringPomodoro => {
+                interval = Interval::from_secs(pomodoro_duration);
+                state_machine.next_state();
+            }
             Mode::Pomodoro if interval.has_ended() => {
                 play_sound();
                 state_machine.next_state();
             }
-            Mode::PomodoroEndedAcked => {
-                // FIXME: without knowledge of which state we're in, how do we know to
-                // set the interval or to the break duration? we probably need to
-                // have an explicit entering_break state
+            Mode::EnteringBreak => {
                 interval = Interval::from_secs(break_duration);
                 state_machine.next_state();
             }
             Mode::Break if interval.has_ended() => {
                 play_sound();
-                state_machine.next_state();
-            }
-            Mode::BreakEndedAcked => {
-                interval = Interval::from_secs(pomodoro_duration);
                 state_machine.next_state();
             }
             _ => (),
@@ -266,13 +262,13 @@ fn main() {
                     .unwrap();
                 }
             }
-            Mode::AwaitingPomodoroEndedAck => write!(
+            Mode::PomodoroEnded => write!(
                 stdout,
                 "{}Pomodoro ended. Press key to begin break.\r",
                 termion::clear::CurrentLine,
             )
             .unwrap(),
-            Mode::AwaitingBreakEndedAck => write!(
+            Mode::BreakEnded => write!(
                 stdout,
                 "{}Break ended. Press key to begin a new pomodoro.\r",
                 termion::clear::CurrentLine,
