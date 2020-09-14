@@ -175,6 +175,7 @@ fn main() {
             Ok(Event::Key(_)) if state_machine.mode == Mode::BreakEnded => {
                 state_machine.next_state();
             }
+            Ok(Event::Key(_)) if state_machine.mode == Mode::End => break,
             Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) => break,
             Ok(Event::Key(Key::Char('p'))) => paused = !paused,
             Err(RecvTimeoutError::Disconnected) => {
@@ -275,8 +276,7 @@ fn main() {
             )
             .unwrap(),
             Mode::End => {
-                write!(stdout, "{}Done.\r\n", termion::clear::CurrentLine).unwrap();
-                break;
+                write!(stdout, "{}Done. Press any key to end.\r", termion::clear::CurrentLine).unwrap();
             }
             _ => unreachable!(),
         }
