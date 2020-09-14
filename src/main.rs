@@ -94,6 +94,7 @@ impl Interval {
 impl SubAssign<Duration> for Interval {
     fn sub_assign(&mut self, rhs: Duration) {
         // count up on `elapsed` because Duration can't be negative
+        // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
         self.elapsed += rhs;
     }
 }
@@ -191,7 +192,6 @@ fn main() {
         }
 
         if !paused && (state_machine.mode == Mode::Pomodoro || state_machine.mode == Mode::Break) {
-            // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
             interval -= start.elapsed();
         }
 
