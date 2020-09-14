@@ -276,7 +276,12 @@ fn main() {
             )
             .unwrap(),
             Mode::End => {
-                write!(stdout, "{}Done. Press any key to end.\r", termion::clear::CurrentLine).unwrap();
+                write!(
+                    stdout,
+                    "{}Done. Press any key to end.\r",
+                    termion::clear::CurrentLine
+                )
+                .unwrap();
             }
             _ => unreachable!(),
         }
