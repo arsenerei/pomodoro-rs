@@ -28,8 +28,49 @@ enum Mode {
     PomodoroEndedAcked,
     AwaitingBreakEndedAck,
     BreakEndedAcked,
-    SystemError,
     End,
+}
+
+struct StateMachine {
+    pomodoro_count: u8,
+    break_count: u8,
+    max_pomodoros: u8,
+    mode: Mode,
+}
+
+impl StateMachine {
+    fn new(max_pomodoros: u8) -> StateMachine {
+        StateMachine {
+            pomodoro_count: 1,
+            break_count: 1,
+            max_pomodoros,
+            mode: Mode::Pomodoro,
+        }
+    }
+
+    fn next_state(&mut self) {
+        match self.mode {
+            Mode::Pomodoro => {
+                if self.pomodoro_count == self.max_pomodoros {
+                    self.mode = Mode::End;
+                } else {
+                    self.mode = Mode::AwaitingPomodoroEndedAck;
+                }
+            }
+            Mode::AwaitingPomodoroEndedAck => self.mode = Mode::PomodoroEndedAcked,
+            Mode::PomodoroEndedAcked => {
+                self.pomodoro_count += 1;
+                self.mode = Mode::Break;
+            }
+            Mode::Break => self.mode = Mode::AwaitingBreakEndedAck,
+            Mode::AwaitingBreakEndedAck => self.mode = Mode::BreakEndedAcked,
+            Mode::BreakEndedAcked => {
+                self.break_count += 1;
+                self.mode = Mode::Pomodoro;
+            }
+            Mode::End => (),
+        }
+    }
 }
 
 struct Interval {
@@ -123,55 +164,57 @@ fn main() {
 
     // TODO: write tests
     let mut interval = Interval::from_secs(pomodoro_duration);
-    let mut pomodoro_count = 1;
-    let mut break_count = 1;
     let mut paused = false;
     let mut mode = Mode::Pomodoro;
+    let mut state_machine = StateMachine::new(max_pomodoros);
     loop {
         let start = Instant::now();
         match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Key(_)) if mode == Mode::AwaitingPomodoroEndedAck => {
-                mode = Mode::PomodoroEndedAcked
+            Ok(Event::Key(_)) if state_machine.mode == Mode::AwaitingPomodoroEndedAck => {
+                state_machine.next_state();
             }
-            Ok(Event::Key(_)) if mode == Mode::AwaitingBreakEndedAck => {
-                mode = Mode::BreakEndedAcked
+            Ok(Event::Key(_)) if state_machine.mode == Mode::AwaitingBreakEndedAck => {
+                state_machine.next_state();
             }
             Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) => break,
             Ok(Event::Key(Key::Char('p'))) => paused = !paused,
-            Err(RecvTimeoutError::Disconnected) => mode = Mode::SystemError,
+            Err(RecvTimeoutError::Disconnected) => {
+                write!(
+                    stdout,
+                    "{}System error. Shutting down.\r\n",
+                    termion::clear::CurrentLine,
+                )
+                .unwrap();
+            }
             _ => (),
         }
 
-        if !paused && (mode == Mode::Pomodoro || mode == Mode::Break) {
+        if !paused && (state_machine.mode == Mode::Pomodoro || state_machine.mode == Mode::Break) {
             // per https://rust-lang-nursery.github.io/rust-cookbook/datetime/duration.html#measure-the-elapsed-time-between-two-code-sections
             interval -= start.elapsed();
         }
 
         // The nice thing about using match with Enums in Rust is you get
         // exhaustive match checking. This ensures you're covering all cases.
-        match mode {
+        match state_machine.mode {
             Mode::Pomodoro if interval.has_ended() => {
-                if pomodoro_count == max_pomodoros {
-                    play_sound();
-                    mode = Mode::End;
-                } else {
-                    play_sound();
-                    mode = Mode::AwaitingPomodoroEndedAck;
-                }
+                play_sound();
+                state_machine.next_state();
             }
             Mode::PomodoroEndedAcked => {
-                pomodoro_count += 1;
+                // FIXME: without knowledge of which state we're in, how do we know to
+                // set the interval or to the break duration? we probably need to
+                // have an explicit entering_break state
                 interval = Interval::from_secs(break_duration);
-                mode = Mode::Break;
+                state_machine.next_state();
             }
             Mode::Break if interval.has_ended() => {
                 play_sound();
-                mode = Mode::AwaitingBreakEndedAck;
+                state_machine.next_state();
             }
             Mode::BreakEndedAcked => {
-                break_count += 1;
                 interval = Interval::from_secs(pomodoro_duration);
-                mode = Mode::Pomodoro;
+                state_machine.next_state();
             }
             _ => (),
         }
@@ -180,14 +223,14 @@ fn main() {
         // \r\n: https://stackoverflow.com/a/48497050
         // In raw_mode \n keep the cursor at the same column; \r is needed to put the cursor at the
         // beginning of the line.
-        match mode {
+        match state_machine.mode {
             Mode::Pomodoro => {
                 if paused {
                     write!(
                         stdout,
                         "{}Pomodoro {}: {} (paused)\r",
                         termion::clear::CurrentLine,
-                        pomodoro_count,
+                        state_machine.pomodoro_count,
                         interval,
                     )
                     .unwrap();
@@ -196,7 +239,7 @@ fn main() {
                         stdout,
                         "{}Pomodoro {}: {}\r",
                         termion::clear::CurrentLine,
-                        pomodoro_count,
+                        state_machine.pomodoro_count,
                         interval,
                     )
                     .unwrap();
@@ -208,7 +251,7 @@ fn main() {
                         stdout,
                         "{}Break {}: {} (paused)\r",
                         termion::clear::CurrentLine,
-                        break_count,
+                        state_machine.break_count,
                         interval,
                     )
                     .unwrap();
@@ -217,7 +260,7 @@ fn main() {
                         stdout,
                         "{}Break {}: {}\r",
                         termion::clear::CurrentLine,
-                        break_count,
+                        state_machine.break_count,
                         interval,
                     )
                     .unwrap();
@@ -232,12 +275,6 @@ fn main() {
             Mode::AwaitingBreakEndedAck => write!(
                 stdout,
                 "{}Break ended. Press key to begin a new pomodoro.\r",
-                termion::clear::CurrentLine,
-            )
-            .unwrap(),
-            Mode::SystemError => write!(
-                stdout,
-                "{}System error. Shutting down.\r\n",
                 termion::clear::CurrentLine,
             )
             .unwrap(),
