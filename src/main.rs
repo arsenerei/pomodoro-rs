@@ -166,14 +166,15 @@ fn main() {
     let mut state_machine = StateMachine::new(max_pomodoros);
     let mut interval = Interval::from_secs(pomodoro_duration);
     let mut paused = false;
+    let mut acked = false;
     loop {
         let start = Instant::now();
         match rx.recv_timeout(Duration::from_millis(500)) {
             Ok(Event::Key(_)) if state_machine.mode == Mode::PomodoroEnded => {
-                state_machine.next_state();
+                acked = true;
             }
             Ok(Event::Key(_)) if state_machine.mode == Mode::BreakEnded => {
-                state_machine.next_state();
+                acked = true;
             }
             Ok(Event::Key(_)) if state_machine.mode == Mode::End => break,
             Ok(Event::Key(Key::Char('q'))) | Ok(Event::Key(Key::Ctrl('c'))) => break,
@@ -205,12 +206,20 @@ fn main() {
                 play_sound();
                 state_machine.next_state();
             }
+            Mode::PomodoroEnded if acked => {
+                acked = false;
+                state_machine.next_state();
+            }
             Mode::EnteringBreak => {
                 interval = Interval::from_secs(break_duration);
                 state_machine.next_state();
             }
             Mode::Break if interval.has_ended() => {
                 play_sound();
+                state_machine.next_state();
+            }
+            Mode::BreakEnded if acked => {
+                acked = false;
                 state_machine.next_state();
             }
             _ => (),
