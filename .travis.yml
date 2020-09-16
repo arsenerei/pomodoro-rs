@@ -5,7 +5,9 @@ rust:
   - nightly
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libasound2-dev ; fi
-os: osx
+os:
+  - linux
+  - osx
 cache: cargo
 jobs:
   allow_failures:
